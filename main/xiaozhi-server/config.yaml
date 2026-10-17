@@ -161,6 +161,16 @@ ASR:
     base_url: https://api.openai.com/v1/audio/transcriptions
     model_name: gpt-4o-mini-transcribe
     output_dir: tmp/
+  GoogleChirpASR:
+    # Google Cloud Speech-to-Text v2, model chirp_3 (pip install google-auth)
+    # language_codes: danh sach (vi-VN, en-US, cmn-Hans-CN) hoac ["auto"]
+    type: google_chirp
+    project_id: your-gcp-project-id
+    location: us
+    model_name: chirp_3
+    language_codes: ["auto"]
+    credentials_file: data/gcp-service-account.json
+    output_dir: tmp/
 
 VAD:
   SileroVAD:

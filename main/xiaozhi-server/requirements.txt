@@ -21,3 +21,4 @@ cryptography
 psutil==7.1.3
 portalocker==3.2.0
 Jinja2==3.1.6
+# optional, only for google_chirp ASR: google-auth
