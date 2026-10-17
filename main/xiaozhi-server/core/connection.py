@@ -1058,6 +1058,7 @@ class ConnectionHandler:
 
         if query is not None:
             self.logger.bind(tag=TAG).info(f"大模型收到用户消息: {query}")
+            self.logger.bind(tag=TAG).info(f"[NGHE] {query}")
 
         # 为最顶层时新建会话ID和发送FIRST请求
         if depth == 0:
@@ -1376,6 +1377,7 @@ class ConnectionHandler:
             text_buff = "".join(response_message)
             self.tts.store_tts_text(current_sentence_id, text_buff)
             self.dialogue.put(Message(role="assistant", content=text_buff))
+            self.logger.bind(tag=TAG).info(f"[DICH] {text_buff}")
 
         if depth == 0:
             self.tts.tts_text_queue.put(
