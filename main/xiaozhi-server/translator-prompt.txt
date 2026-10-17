@@ -1,0 +1,5 @@
+{{base_prompt}}
+
+Output rules (your reply is read aloud by a TTS engine):
+- Plain text only. No Markdown, no lists, no emoji, no brackets, no stage directions.
+- Reply language for command mode: {{language}}.
