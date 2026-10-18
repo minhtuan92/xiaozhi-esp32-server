@@ -161,6 +161,16 @@ ASR:
     base_url: https://api.openai.com/v1/audio/transcriptions
     model_name: gpt-4o-mini-transcribe
     output_dir: tmp/
+  GroqASR:
+    # Whisper chạy trên Groq, API tương thích OpenAI nên dùng lại provider openai
+    # model_name: whisper-large-v3-turbo (rẻ, nhanh) hoặc whisper-large-v3 (chính xác hơn)
+    type: openai
+    api_key: your-groq-api-key
+    base_url: https://api.groq.com/openai/v1/audio/transcriptions
+    model_name: whisper-large-v3-turbo
+    # language: vi   # optional ISO code; leave unset for auto-detect (needed for vi/en/zh mix)
+    temperature: 0   # reduces hallucinated text on silence
+    output_dir: tmp/
   GoogleChirpASR:
     # Google Cloud Speech-to-Text v2, model chirp_3 (pip install google-auth)
     # language_codes: danh sach (vi-VN, en-US, cmn-Hans-CN) hoac ["auto"]
@@ -190,7 +200,7 @@ LLM:
   GeminiLLM:
     # Gemini qua endpoint tương thích OpenAI
     type: openai
-    model_name: gemini-2.0-flash
+    model_name: gemini-3.8-flash
     url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key: 你的api_key
   DeepSeekLLM:

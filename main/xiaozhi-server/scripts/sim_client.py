@@ -46,7 +46,8 @@ async def run(args):
         pcm = await synth(args.text, args.lang)
         label = args.text
     pcm += b"\x00" * (-len(pcm) % (FRAME * 2))
-    pcm += b"\x00" * (FRAME * 2 * 12)  # trailing silence so the VAD closes the utterance
+    speech_len = len(pcm)
+    pcm += b"\x00" * (FRAME * 2 * 30)  # >1s trailing silence so the VAD closes the utterance (auto mode, no explicit stop)
     enc = Encoder(RATE, 1, APPLICATION_AUDIO)
     headers = {"device-id": "aa:bb:cc:dd:ee:99", "client-id": "sim"}
     async with websockets.connect(args.url, additional_headers=headers) as ws:
@@ -54,13 +55,14 @@ async def run(args):
                                   "audio_params": {"format": "opus", "sample_rate": RATE,
                                                    "channels": 1, "frame_duration": FRAME_MS}}))
         await asyncio.wait_for(ws.recv(), 10)
+        await asyncio.sleep(4)  # first connection after server start initializes ASR/VAD/LLM; audio sent earlier is dropped
         sid = None
         print(f"[PHAT] {label}")
         await ws.send(json.dumps({"type": "listen", "state": "start", "mode": "auto"}))
         for i in range(0, len(pcm), FRAME * 2):
             await ws.send(enc.encode(pcm[i:i + FRAME * 2], FRAME))
-            await asyncio.sleep(FRAME_MS / 1000 / 4)
-        await ws.send(json.dumps({"type": "listen", "state": "stop"}))
+            # speech is sent 4x faster than real time; silence at real time (VAD measures silence by wall clock)
+            await asyncio.sleep(FRAME_MS / 1000 / (4 if i < speech_len else 1))
         try:
             while True:
                 msg = await asyncio.wait_for(ws.recv(), args.wait)

@@ -15,7 +15,11 @@ class ASRProvider(ASRProviderBase):
         self.interface_type = InterfaceType.NON_STREAM
         self.api_key = config.get("api_key")
         self.api_url = config.get("base_url")
-        self.model = config.get("model_name")        
+        self.model = config.get("model_name")
+        # Optional: ISO-639-1 code (vi, en, zh). Empty/"auto" lets Whisper detect.
+        language = str(config.get("language") or "").strip().lower()
+        self.language = "" if language == "auto" else language
+        self.temperature = config.get("temperature")
         self.output_dir = config.get("output_dir")
         self.delete_audio_file = delete_audio_file
 
@@ -40,6 +44,10 @@ class ASRProvider(ASRProviderBase):
             data = {
                 "model": self.model
             }
+            if self.language:
+                data["language"] = self.language
+            if self.temperature is not None:
+                data["temperature"] = self.temperature
 
 
             with open(file_path, "rb") as audio_file:  # 使用with语句确保文件关闭
