@@ -343,6 +343,9 @@ async def send_stt_message(conn: "ConnectionHandler", text):
     await conn.websocket.send(
         json.dumps({"type": "stt", "text": stt_text, "session_id": conn.session_id})
     )
+    # No-speaker mode (SilentTTS): do not announce "tts start", so the device keeps its microphone on
+    if getattr(conn.tts, "mute_device", False):
+        return
     await send_tts_message(conn, "start")
     # 发送start消息后客户端状态会处于说话中状态，同步服务端状态
     conn.client_is_speaking = True

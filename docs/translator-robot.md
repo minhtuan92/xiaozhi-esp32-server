@@ -11,8 +11,8 @@ Server đọc `config.yaml`, rồi ghi đè bằng `main/xiaozhi-server/data/.co
 | Mục | Giá trị có sẵn |
 | :--- | :--- |
 | `ASR` | `OpenaiASR`, `GroqASR`, `GoogleChirpASR` |
-| `LLM` | `OpenAILLM`, `GeminiLLM`, `DeepSeekLLM` |
-| `TTS` | `EdgeTTS` và OpenAI TTS (xem khối `TTS` trong `config.yaml`) |
+| `LLM` | `OpenAILLM`, `GeminiLLM`, `DeepSeekLLM`, `GroqLLM` |
+| `TTS` | `SilentTTS` (không loa), `EdgeTTS`, `OpenAITTS` |
 
 ### ASR
 
@@ -45,6 +45,20 @@ Prompt nằm ở `translator-prompt.txt` (template) và khóa `prompt` trong `co
 
 Các lệnh này nằm trong prompt, nên độ tin cậy phụ thuộc vào LLM; chưa được thử bằng giọng thật.
 
+### LLM: lưu ý hạn mức free tier
+
+Gemini free tier giới hạn rất thấp: `gemini-3.8-flash` chỉ **20 yêu cầu mỗi ngày** cho mỗi model (lỗi `429 ... GenerateRequestsPerDayPerProjectPerModel-FreeTier`, phải chờ hàng giờ). Mỗi lượt dịch, và mỗi lần ngắt kết nối (câu chào tạm biệt `end_prompt`), tốn một yêu cầu. Khối `GroqLLM` (`openai/gpt-oss-120b`, free tier của Groq, dùng chung khóa với `GroqASR`) là phương án thay thế đã chạy được; kiểm tra danh sách model còn hiệu lực bằng `GET https://api.groq.com/openai/v1/models`.
+
+### Chế độ không loa và bộ lọc mic
+
+| Tùy chọn | Ý nghĩa |
+| :--- | :--- |
+| `selected_module.TTS: SilentTTS` | Không tạo âm thanh, **không gửi `tts start`** cho thiết bị. Nếu không, thiết bị tắt mic từ lúc nhận dạng đến lúc dịch xong và mất phần đầu câu kế tiếp. Văn bản dịch vẫn log ra `[DICH]` |
+| `audio_highpass_hz: 100` | Lọc thông cao (Butterworth bậc 2) trước VAD/ASR để cắt tiếng ù tần số thấp của mic MEMS (đo được 94–98% năng lượng dưới 100 Hz ở đoạn im lặng). `0` = tắt |
+| `VAD.SileroVAD.min_silence_duration_ms: 800` | Ngưỡng im lặng để chốt câu. Giá trị 200 làm câu bị cắt ở dấu phẩy ("Hello, how are you" → chỉ nhận "Hello?") |
+
+Nhược điểm đã biết: Whisper đôi khi "bịa" câu từ âm thanh nền gần như im lặng (đã thấy một câu tiếng Pháp), và nhầm âm gần giống ("for two" → "for Drew").
+
 ## 2. Chạy và test
 
 1. Khởi động server: `python app.py` (từ `main/xiaozhi-server`). Cần khoảng 20 giây; **kết nối đầu tiên sau khi khởi động còn khởi tạo ASR/VAD/LLM nên chậm hơn**.
@@ -75,5 +89,5 @@ Ví dụ đã chạy thật (Groq + Gemini):
 
 ## 4. Đã làm và chưa làm
 
-- Đã: server chạy thật với Groq + Gemini, log hội thoại ra console, client giả lập.
+- Đã: server chạy thật với Groq (ASR + LLM) và mic INMP441 trên ESP32-S3, nói liên tiếp nhiều câu Anh/Việt, log `[NGHE]`/`[DICH]` ra console, client giả lập.
 - Chưa: chạy trên Pi 3B (đo RAM; trên Windows khoảng 137 MB khi có 1 kết nối), Chirp 3 với API thật, firmware ESP32 (khung bo ở `firmware-board/translator-robot-s3`, chưa build), half-duplex.

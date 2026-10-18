@@ -57,6 +57,8 @@ log:
 
 # 使用完声音文件后删除文件(Delete the sound file when you are done using it)
 delete_audio: true
+# High-pass filter (Hz) applied to mic audio before VAD/ASR; 0 = off. Removes low-frequency rumble.
+audio_highpass_hz: 100
 # 没有语音输入多久后断开连接(秒)，默认2分钟，即120秒
 close_connection_no_voice_time: 120
 # TTS请求超时时间(秒)
@@ -188,7 +190,7 @@ VAD:
     threshold: 0.5
     threshold_low: 0.3
     model_dir: models/snakers4_silero-vad
-    min_silence_duration_ms: 200
+    min_silence_duration_ms: 800
 
 LLM:
   # type: openai dùng cho mọi API tương thích OpenAI (OpenAI, Gemini, DeepSeek...)
@@ -203,6 +205,12 @@ LLM:
     model_name: gemini-3.8-flash
     url: https://generativelanguage.googleapis.com/v1beta/openai/
     api_key: 你的api_key
+  GroqLLM:
+    # Groq LLM qua endpoint tuong thich OpenAI (free tier, dung chung key voi GroqASR)
+    type: openai
+    model_name: openai/gpt-oss-120b
+    url: https://api.groq.com/openai/v1
+    api_key: your-groq-api-key
   DeepSeekLLM:
     type: openai
     model_name: deepseek-chat
@@ -217,6 +225,10 @@ VLLM:
     api_key: 你的api_key
 
 TTS:
+  SilentTTS:
+    # No speaker: no audio is generated or sent, only [DICH] is logged; the device never enters the speaking state
+    type: silent
+    output_dir: tmp/
   EdgeTTS:
     type: edge
     voice: vi-VN-HoaiMyNeural

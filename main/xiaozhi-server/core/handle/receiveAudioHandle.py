@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from core.connection import ConnectionHandler
 from core.utils.util import audio_to_data
+from core.utils.highpass import HighPass
 from core.handle.abortHandle import handleAbortMessage
 from core.handle.intentHandler import handle_user_intent
 from core.utils.output_counter import check_device_output_limit
@@ -15,6 +16,12 @@ TAG = __name__
 
 
 async def handleAudioMessage(conn: "ConnectionHandler", pcm_frame):
+    # Optional high-pass filter (config: audio_highpass_hz, 0 = off) before VAD/ASR
+    _hp_hz = float(conn.config.get("audio_highpass_hz", 0) or 0)
+    if _hp_hz > 0:
+        if getattr(conn, "_highpass", None) is None:
+            conn._highpass = HighPass(_hp_hz, 16000)
+        pcm_frame = conn._highpass.process(bytes(pcm_frame))
     # 当前片段是否有人说话
     have_voice = conn.vad.is_vad(conn, pcm_frame)
     # 如果设备刚刚被唤醒，短暂忽略VAD检测
