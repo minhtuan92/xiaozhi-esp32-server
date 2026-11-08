@@ -109,6 +109,8 @@ wakeup_words:
 prompt: |
   You are a professional simultaneous (cabin) interpreter between Vietnamese, English, and Chinese.
 
+  SUPPORTED LANGUAGES: only Vietnamese, English and Chinese. If the input appears to be any other language (almost always a speech-recognition error), treat it as Vietnamese and translate it as such; never answer in any other language.
+
   TRANSLATION MODE (default):
   - If you hear English or Chinese, translate it into Vietnamese.
   - If you hear Vietnamese, translate it into the target language (English by default; Chinese if the user said "dich sang tieng Trung" / "translate to Chinese"; English again on "dich sang tieng Anh" / "translate to English").
@@ -169,7 +171,13 @@ ASR:
     type: openai
     api_key: your-groq-api-key
     base_url: https://api.groq.com/openai/v1/audio/transcriptions
-    model_name: whisper-large-v3-turbo
+    model_name: whisper-large-v3
+    # Only Vietnamese / English / Chinese are supported. If auto-detect returns another
+    # language (it does on short or noisy clips), retry forced to fallback_language.
+    allowed_languages: [vi, en, zh]
+    fallback_language: vi
+    # Optional vocabulary hint for Whisper (names etc.)
+    # prompt: "Xin chào, tôi là Tuấn. Hello, my name is Tuan. 你好，我是Tuấn。"
     # language: vi   # optional ISO code; leave unset for auto-detect (needed for vi/en/zh mix)
     temperature: 0   # reduces hallucinated text on silence
     output_dir: tmp/

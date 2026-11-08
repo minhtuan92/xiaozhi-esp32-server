@@ -1,5 +1,6 @@
 import time
 import os
+import re
 from config.logger import setup_logging
 from typing import Optional, Tuple, List
 from core.providers.asr.dto.dto import InterfaceType
@@ -20,6 +21,11 @@ class ASRProvider(ASRProviderBase):
         language = str(config.get("language") or "").strip().lower()
         self.language = "" if language == "auto" else language
         self.temperature = config.get("temperature")
+        # Optional Whisper prompt: names/vocabulary hints (e.g. "Tuấn, Xin chào, Hello")
+        self.prompt = str(config.get("prompt") or "").strip()
+        # If auto-detect returns a language outside this list, retry forced to the fallback
+        self.allowed_languages = [str(x).lower() for x in (config.get("allowed_languages") or [])]
+        self.fallback_language = str(config.get("fallback_language") or "vi").lower()
         self.output_dir = config.get("output_dir")
         self.delete_audio_file = delete_audio_file
 
@@ -27,6 +33,13 @@ class ASRProvider(ASRProviderBase):
 
     def requires_file(self) -> bool:
         return True
+
+    _LANG_CODES = {"vietnamese": "vi", "english": "en", "chinese": "zh"}
+    _FILLERS = {"uhm", "um", "umm", "ummm", "uh", "ư", "ừ", "ừm", "hmm", "hm", "ah", "ờ", "à", "eh", "oh"}
+
+    def _post(self, file_path, data, headers):
+        with open(file_path, "rb") as audio_file:
+            return requests.post(self.api_url, files={"file": audio_file}, data=data, headers=headers)
 
     # Phrases Whisper tends to invent on silence/noise (lower-case, substring match)
     _HALLUCINATIONS = (
@@ -51,6 +64,14 @@ class ASRProvider(ASRProviderBase):
             text = result.get("text", "")
         text = text.strip()
         low = text.lower()
+        if re.sub(r"[\s.,!?…]+", "", low) in self._FILLERS:
+            logger.bind(tag=TAG).info(f"[LOC] bo tieng am u: {text}")
+            return ""
+        # Whisper sometimes echoes the prompt back on silence/noise
+        pl = self.prompt.lower()
+        if pl and (pl in low or (low.rstrip(". ") in pl and len(low) >= 0.8 * len(pl))):
+            logger.bind(tag=TAG).info(f"[LOC] bo prompt lap lai: {text}")
+            return ""
         if any(p in low for p in self._HALLUCINATIONS):
             logger.bind(tag=TAG).info(f"[LOC] bo cau ao giac: {text}")
             return ""
@@ -76,25 +97,29 @@ class ASRProvider(ASRProviderBase):
                 data["language"] = self.language
             if self.temperature is not None:
                 data["temperature"] = self.temperature
+            if self.prompt:
+                data["prompt"] = self.prompt
             # verbose_json returns per-segment no_speech_prob / avg_logprob for filtering
             data["response_format"] = "verbose_json"
 
 
-            with open(file_path, "rb") as audio_file:  # 使用with语句确保文件关闭
-                files = {
-                    "file": audio_file
-                }
-
-                start_time = time.time()
-                response = requests.post(
-                    self.api_url,
-                    files=files,
-                    data=data,
-                    headers=headers
-                )
-                logger.bind(tag=TAG).debug(
-                    f"语音识别耗时: {time.time() - start_time:.3f}s | 结果: {response.text}"
-                )
+            start_time = time.time()
+            response = self._post(file_path, data, headers)
+            logger.bind(tag=TAG).debug(
+                f"语音识别耗时: {time.time() - start_time:.3f}s | 结果: {response.text}"
+            )
+            if response.status_code == 200 and self.allowed_languages and not self.language:
+                detected = str(response.json().get("language") or "").lower()
+                if detected and not any(
+                    detected.startswith(a) or self._LANG_CODES.get(detected) == a
+                    for a in self.allowed_languages
+                ):
+                    logger.bind(tag=TAG).info(
+                        f"[LOC] ngon ngu '{detected}' ngoai danh sach, thu lai bang '{self.fallback_language}'"
+                    )
+                    retry = self._post(file_path, {**data, "language": self.fallback_language}, headers)
+                    if retry.status_code == 200:
+                        response = retry
 
             if response.status_code == 200:
                 text = self._filter_hallucination(response.json())
