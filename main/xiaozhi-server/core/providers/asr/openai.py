@@ -28,6 +28,34 @@ class ASRProvider(ASRProviderBase):
     def requires_file(self) -> bool:
         return True
 
+    # Phrases Whisper tends to invent on silence/noise (lower-case, substring match)
+    _HALLUCINATIONS = (
+        "thanks for watching", "thank you for watching", "subtitles by",
+        "amara.org", "please subscribe", "like and subscribe",
+        "cảm ơn các bạn đã theo dõi", "cảm ơn các bạn đã xem",
+        "hãy subscribe", "đăng ký kênh", "ghiền mì gõ",
+        "字幕", "请不吝点赞",
+    )
+
+    def _filter_hallucination(self, result: dict) -> str:
+        """Drop segments Whisper itself flags as non-speech, and known stock phrases."""
+        segments = result.get("segments")
+        if segments:
+            kept = [
+                s.get("text", "")
+                for s in segments
+                if not (s.get("no_speech_prob", 0) > 0.6 and s.get("avg_logprob", 0) < -0.7)
+            ]
+            text = "".join(kept)
+        else:
+            text = result.get("text", "")
+        text = text.strip()
+        low = text.lower()
+        if any(p in low for p in self._HALLUCINATIONS):
+            logger.bind(tag=TAG).info(f"[LOC] bo cau ao giac: {text}")
+            return ""
+        return text
+
     async def speech_to_text(self, opus_data: List[bytes], session_id: str, artifacts=None) -> Tuple[Optional[str], Optional[str]]:
         file_path = None
         try:
@@ -48,6 +76,8 @@ class ASRProvider(ASRProviderBase):
                 data["language"] = self.language
             if self.temperature is not None:
                 data["temperature"] = self.temperature
+            # verbose_json returns per-segment no_speech_prob / avg_logprob for filtering
+            data["response_format"] = "verbose_json"
 
 
             with open(file_path, "rb") as audio_file:  # 使用with语句确保文件关闭
@@ -67,7 +97,7 @@ class ASRProvider(ASRProviderBase):
                 )
 
             if response.status_code == 200:
-                text = response.json().get("text", "")
+                text = self._filter_hallucination(response.json())
                 return text, file_path
             else:
                 raise Exception(f"API请求失败: {response.status_code} - {response.text}")
