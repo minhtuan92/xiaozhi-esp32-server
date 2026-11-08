@@ -15,6 +15,31 @@ from core.handle.sendAudioHandle import send_stt_message, SentenceType
 TAG = __name__
 
 
+_dbg_sock = None
+
+
+def _emit_debug(conn, pcm_frame, have_voice):
+    """Send mic level + VAD state (10 Hz) to scripts/debug_monitor.py over UDP. Debug only."""
+    global _dbg_sock
+    now = time.time()
+    if now - getattr(conn, "_dbg_last", 0) < 0.1:
+        return
+    conn._dbg_last = now
+    try:
+        import array, math, socket
+        if _dbg_sock is None:
+            _dbg_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s = array.array("h")
+        s.frombytes(bytes(pcm_frame)[: len(pcm_frame) // 2 * 2])
+        rms = math.sqrt(sum(x * x for x in s) / len(s)) if len(s) else 0
+        peak = max((abs(x) for x in s), default=0)
+        msg = {"t": now, "rms": round(rms), "peak": peak, "vad": bool(have_voice),
+               "ip": conn.headers.get("x-real-ip") or getattr(conn, "client_ip", "")}
+        _dbg_sock.sendto(json.dumps(msg).encode(), ("127.0.0.1", 8091))
+    except Exception:
+        pass
+
+
 async def handleAudioMessage(conn: "ConnectionHandler", pcm_frame):
     # Optional high-pass filter (config: audio_highpass_hz, 0 = off) before VAD/ASR
     _hp_hz = float(conn.config.get("audio_highpass_hz", 0) or 0)
@@ -24,6 +49,8 @@ async def handleAudioMessage(conn: "ConnectionHandler", pcm_frame):
         pcm_frame = conn._highpass.process(bytes(pcm_frame))
     # 当前片段是否有人说话
     have_voice = conn.vad.is_vad(conn, pcm_frame)
+    if conn.config.get("debug_monitor"):
+        _emit_debug(conn, pcm_frame, have_voice)
     # 如果设备刚刚被唤醒，短暂忽略VAD检测
     if hasattr(conn, "just_woken_up") and conn.just_woken_up:
         have_voice = False
