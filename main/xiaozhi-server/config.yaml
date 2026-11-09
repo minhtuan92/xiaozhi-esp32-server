@@ -143,7 +143,9 @@ selected_module:
   VLLM: OpenAIVLLM
   TTS: EdgeTTS
   Memory: nomem
-  Intent: function_call
+  # Translator needs no tool calling; function_call sends tools on every request and
+  # Groq/Llama sometimes returns 'Parsing failed' for malformed tool calls.
+  Intent: nointent
 
 Intent:
   nointent:
@@ -177,7 +179,7 @@ ASR:
     allowed_languages: [vi, en, zh]
     fallback_language: vi
     # Optional vocabulary hint for Whisper (names etc.)
-    # prompt: "Xin chào, tôi là Tuấn. Hello, my name is Tuan. 你好，我是Tuấn。"
+    # prompt: "Tuấn, Tuan"   # keep it to names only; multilingual sentences make Whisper add translations
     # language: vi   # optional ISO code; leave unset for auto-detect (needed for vi/en/zh mix)
     temperature: 0   # reduces hallucinated text on silence
     output_dir: tmp/

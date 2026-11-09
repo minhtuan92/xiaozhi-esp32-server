@@ -62,7 +62,14 @@ class ASRProvider(ASRProviderBase):
             text = "".join(kept)
         else:
             text = result.get("text", "")
+        # Whisper sometimes appends a "translation" in another script, or repeats the sentence
+        lang = str(result.get("language") or "").lower()
+        if lang not in ("chinese", "zh", "japanese", "ja"):
+            text = re.sub(r"[぀-ヿ㐀-鿿豈-﫿]+[，。！？、,.!? ]*", "", text)
         text = text.strip()
+        m = re.match(r"^(.{6,}?)\s*\1$", text, re.S)
+        if m:
+            text = m.group(1).strip()
         low = text.lower()
         if re.sub(r"[\s.,!?…]+", "", low) in self._FILLERS:
             logger.bind(tag=TAG).info(f"[LOC] bo tieng am u: {text}")
